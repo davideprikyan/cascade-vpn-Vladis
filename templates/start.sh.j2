@@ -1,0 +1,32 @@
+#!/bin/bash
+set -e
+
+cleanup() {
+  ip rule del fwmark 51 lookup main priority 99 2>/dev/null || true
+  iptables -t mangle -D PREROUTING -i amn0 -p udp --sport {{ wg_server_port }} -j MARK --set-mark 51 2>/dev/null || true
+  ip rule del from 172.29.172.0/24 lookup 100 priority 100 2>/dev/null || true
+  ip route del default dev awg0 table 100 2>/dev/null || true
+  awg-quick down /opt/amnezia/awg/awg0.conf 2>/dev/null || true
+}
+trap cleanup EXIT
+
+# Clean up any leftover state from a previous run
+ip rule del fwmark 51 lookup main priority 99 2>/dev/null || true
+iptables -t mangle -D PREROUTING -i amn0 -p udp --sport {{ wg_server_port }} -j MARK --set-mark 51 2>/dev/null || true
+ip rule del from 172.29.172.0/24 lookup 100 priority 100 2>/dev/null || true
+ip route del default dev awg0 table 100 2>/dev/null || true
+awg-quick down /opt/amnezia/awg/awg0.conf 2>/dev/null || true
+
+# Bring up the tunnel
+awg-quick up /opt/amnezia/awg/awg0.conf
+
+# Route VPN client traffic through remote server
+ip route add default dev awg0 table 100
+ip rule add from 172.29.172.0/24 lookup 100 priority 100
+
+# Exempt WireGuard server responses (sport {{ wg_server_port }}) from remote server routing
+# so handshakes and keepalives go back to the laptop via ens3
+iptables -t mangle -A PREROUTING -i amn0 -p udp --sport {{ wg_server_port }} -j MARK --set-mark 51
+ip rule add fwmark 51 lookup main priority 99
+
+tail -f /dev/null

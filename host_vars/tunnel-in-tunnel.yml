@@ -1,0 +1,6 @@
+awg_client_address: "10.8.1.2/32"
+awg_client_private_key: "{{ vault_awg_client_private_key }}"
+awg_server_public_key: "{{ vault_awg_server_public_key }}"
+awg_preshared_key: "{{ vault_awg_preshared_key }}"
+awg_server_endpoint: "{{ vault_awg_server_endpoint }}"
+wg_server_port: 52911

@@ -1,0 +1,20 @@
+[Unit]
+Description=AmneziaWG cascade tunnel to remote server
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Restart=always
+ExecStartPre=-/usr/bin/docker kill amnezia-awg-client
+ExecStartPre=-/usr/bin/docker rm amnezia-awg-client
+ExecStart=/usr/bin/docker run --name amnezia-awg-client \
+  --network host \
+  --privileged \
+  -v /lib/modules:/lib/modules \
+  -v /opt/amnezia/awg-client/awg0.conf:/opt/amnezia/awg/awg0.conf:ro \
+  -v /opt/amnezia/awg-client/start.sh:/opt/amnezia/start.sh \
+  amneziavpn/amneziawg-go:latest /opt/amnezia/start.sh
+ExecStop=/usr/bin/docker stop amnezia-awg-client
+
+[Install]
+WantedBy=multi-user.target

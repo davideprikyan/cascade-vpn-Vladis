@@ -1,0 +1,113 @@
+---
+- name: Configure cascade VPN tunnel on tunnel-in-tunnel
+  hosts: tunnel-in-tunnel
+  become: true
+  vars_files:
+    - vars.yml
+
+  tasks:
+    # ── 1. Config files ───────────────────────────────────────────────────────
+    - name: Create awg-client config directory
+      ansible.builtin.file:
+        path: /opt/amnezia/awg-client
+        state: directory
+        owner: root
+        group: root
+        mode: '0700'
+
+    - name: Deploy awg0 tunnel config
+      ansible.builtin.template:
+        src: templates/awg0.conf.j2
+        dest: /opt/amnezia/awg-client/awg0.conf
+        owner: root
+        group: root
+        mode: '0600'
+      notify: Restart amnezia-awg-client
+
+    - name: Deploy container start script
+      ansible.builtin.template:
+        src: templates/start.sh.j2
+        dest: /opt/amnezia/awg-client/start.sh
+        owner: root
+        group: root
+        mode: '0755'
+      notify: Restart amnezia-awg-client
+
+    # ── 2. Host sysctl + policy routing table ────────────────────────────────
+    - name: Set src_valid_mark sysctl on host
+      ansible.posix.sysctl:
+        name: net.ipv4.conf.all.src_valid_mark
+        value: '1'
+        sysctl_file: /etc/sysctl.d/99-amneziawg.conf
+        reload: true
+
+    - name: Add cascade routing table to rt_tables
+      ansible.builtin.lineinfile:
+        path: /etc/iproute2/rt_tables
+        line: "100\tcascade"
+        regexp: '^100\s'
+        state: present
+
+    # ── 3. Pull Docker image ──────────────────────────────────────────────────
+    - name: Pull amneziawg-go image
+      ansible.builtin.command: docker pull amneziavpn/amneziawg-go:latest
+      changed_when: false
+
+    # ── 4. systemd service ────────────────────────────────────────────────────
+    - name: Install amnezia-awg-client systemd service
+      ansible.builtin.copy:
+        src: files/amnezia-awg-client.service
+        dest: /etc/systemd/system/amnezia-awg-client.service
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Reload systemd
+
+    - name: Enable and start amnezia-awg-client service
+      ansible.builtin.systemd:
+        name: amnezia-awg-client
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    # ── 5. Verification ───────────────────────────────────────────────────────
+    - name: Wait for tunnel interface to come up
+      ansible.builtin.command: ip addr show awg0
+      register: awg_iface
+      retries: 5
+      delay: 3
+      until: awg_iface.rc == 0
+      changed_when: false
+
+    - name: Show tunnel interface
+      ansible.builtin.debug:
+        msg: "{{ awg_iface.stdout_lines }}"
+
+    - name: Check routing rules
+      ansible.builtin.command: ip rule show
+      register: ip_rules
+      changed_when: false
+
+    - name: Show routing rules
+      ansible.builtin.debug:
+        msg: "{{ ip_rules.stdout_lines }}"
+
+    - name: Check routing table 100
+      ansible.builtin.command: ip route show table 100
+      register: ip_rt100
+      changed_when: false
+
+    - name: Show routing table 100
+      ansible.builtin.debug:
+        msg: "{{ ip_rt100.stdout_lines }}"
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart amnezia-awg-client
+      ansible.builtin.systemd:
+        name: amnezia-awg-client
+        state: restarted
+        daemon_reload: true

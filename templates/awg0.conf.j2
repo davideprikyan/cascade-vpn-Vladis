@@ -1,0 +1,20 @@
+[Interface]
+Address = {{ awg_client_address }}
+PrivateKey = {{ awg_client_private_key }}
+Table = off
+Jc = 3
+Jmin = 10
+Jmax = 50
+S1 = 91
+S2 = 128
+H1 = 378108866
+H2 = 74576333
+H3 = 1863027714
+H4 = 860014448
+
+[Peer]
+PublicKey = {{ awg_server_public_key }}
+PresharedKey = {{ awg_preshared_key }}
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = {{ awg_server_endpoint }}
+PersistentKeepalive = 25
