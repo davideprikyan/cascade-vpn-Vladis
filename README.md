@@ -69,7 +69,7 @@ ansible-playbook -i inventory.ini tunnel_cascade.yml --vault-password-file ~/.va
 ## Checking tunnel status on the server
 
 ```bash
-ssh ubuntu@<tunnel-in-tunnel-ip>
+ssh root@<tunnel-in-tunnel-ip>
 sudo systemctl status amnezia-awg-client
 sudo docker logs amnezia-awg-client
 sudo ip rule show
